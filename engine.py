@@ -1,21 +1,29 @@
-import ollama
+from groq import Groq
+import streamlit as st
 
 def generer_itineraire(destination, jours, style):
-    # Préparation des instructions pour l'IA
+    # Récupère la clé API cachée dans les paramètres de Streamlit
+    try:
+        api_key = st.secrets["GROQ_API_KEY"]
+    except KeyError:
+        st.error("⚠️ La clé GROQ_API_KEY est manquante dans les Secrets.")
+        return
+
+    client = Groq(api_key=api_key)
+    
     prompt = f"Expert voyage. Crée un itinéraire pour {destination}, {jours} jours, style {style}. Réponds en français."
     
     try:
-        # On active le streaming pour un affichage fluide
-        response = ollama.chat(
-            model='mistral-nemo',
+        # On utilise un modèle puissant disponible sur le Cloud
+        response = client.chat.completions.create(
+            model='llama-3.3-70b-versatile',
             messages=[
                 {'role': 'system', 'content': 'Tu es une IA spécialisée dans le voyage.'},
                 {'role': 'user', 'content': prompt}
             ],
-            options={'temperature': 0.7},
-            stream=True  # Envoie les mots un par un
+            temperature=0.7,
+            stream=True  # Permet l'affichage progressif du texte
         )
         return response 
     except Exception as e:
-        # En cas de problème avec Ollama
-        raise Exception(f"Erreur moteur : {e}")
+        raise Exception(f"Erreur moteur Cloud : {e}")
