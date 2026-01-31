@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voyageur AI – Générateur d'Itinéraires</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* Clean modern theme: indigo / violet / cyan */
+        :root{
+            --bg-1: #0f172a;        /* deep navy */
+            --bg-2: #071033;        /* darker */
+            --surface: rgba(255,255,255,0.03);
+            --card: #0b1220;        /* dark card */
+            --muted: #9aa4b2;
+            --text: #e6eef8;
+            --heading: #ffffff;
+            --primary: #7C3AED;     /* violet */
+            --accent: #06B6D4;      /* cyan */
+            --accent-2: #FF7A93;    /* coral */
+            --glass: rgba(255,255,255,0.06);
+        }
+
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body{height:100%}
+        body{
+            font-family:'DM Sans',system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+            background: radial-gradient(1200px 600px at 10% 10%, rgba(124,58,237,0.12), transparent),
+                        linear-gradient(180deg,var(--bg-1),var(--bg-2));
+            color:var(--text);
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+            min-height:100vh;
+            overflow-y:auto;
+        }
+
+        /* Subtle floating accent */
+        body::before{
+            content:'';position:fixed;left:-15%;top:-20%;width:60vmax;height:60vmax;
+            background:radial-gradient(circle at 30% 30%, rgba(124,58,237,0.08), transparent 30%),
+                       radial-gradient(circle at 70% 70%, rgba(6,182,212,0.06), transparent 30%);
+            pointer-events:none;z-index:0;filter:blur(40px);
+        }
+
+        .container{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:56px 24px}
+
+        header{text-align:center;margin-bottom:56px}
+        h1{font-family:'Playfair Display',serif;font-size:clamp(2rem,5vw,3.5rem);color:var(--heading);line-height:1}
+        .subtitle{color:var(--muted);margin-top:8px}
+
+        /* Card */
+        .card{
+            background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+            border-radius:20px;padding:36px;box-shadow:0 8px 40px rgba(2,6,23,0.6);
+            -webkit-backdrop-filter: blur(6px);backdrop-filter: blur(6px);
+            border:1px solid rgba(255,255,255,0.04);
+        }
+
+        /* Form grid */
+        .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:28px}
+        @media (max-width:800px){.form-grid{grid-template-columns:1fr}}
+
+        label{display:block;font-weight:600;color:var(--muted);margin-bottom:8px}
+
+        .input-with-icon{position:relative}
+        .input-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--accent)}
+
+        input[type=text],input[type=number],select{
+            width:100%;padding:14px 18px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);
+            background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+            color:var(--text);font-size:15px;outline:none;transition:box-shadow .18s,transform .12s;
+        }
+        .input-with-icon input{padding-left:48px}
+        input:focus{box-shadow:0 6px 18px rgba(124,58,237,0.12);transform:translateY(-2px)}
+
+        .budget-display{text-align:center;margin-bottom:12px}
+        .budget-value{font-family:'Playfair Display',serif;font-size:2.1rem;color:var(--text);font-weight:700}
+        .budget-label{font-size:0.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+
+        .budget-legend{display:flex;justify-content:space-between;color:var(--muted);font-size:0.9rem;margin-top:6px}
+
+        /* Range styling */
+        input[type=range]{-moz-appearance:none;appearance:none;height:10px;border-radius:999px;width:100%;background:linear-gradient(90deg,var(--accent),var(--primary));outline:none}
+        input[type=range]::-webkit-slider-thumb{width:22px;height:22px;border-radius:50%;background:linear-gradient(180deg,var(--primary),#5b21b6);box-shadow:0 6px 18px rgba(0,0,0,0.4);cursor:pointer}
+        input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--primary);box-shadow:0 6px 18px rgba(0,0,0,0.35);cursor:pointer}
+
+        /* Interests */
+        .interests-container{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px}
+        .interest-tag{padding:10px 18px;background:transparent;border:1px solid rgba(255,255,255,0.04);border-radius:999px;color:var(--muted);cursor:pointer;transition:all .18s;font-weight:600}
+        .interest-tag:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(6,182,212,0.06)}
+        .interest-tag.selected{background:linear-gradient(90deg,var(--accent),var(--primary));color:var(--heading);border-color:transparent}
+
+        .custom-interest-group{display:flex;gap:10px;margin-top:12px}
+        .add-btn{padding:12px 18px;background:linear-gradient(90deg,var(--accent),var(--primary));color:var(--heading);border:none;border-radius:12px;cursor:pointer;font-weight:700}
+        .add-btn:hover{transform:translateY(-3px)}
+
+        .generate-btn{width:100%;padding:16px;background:linear-gradient(90deg,var(--primary),var(--accent));color:var(--heading);border:none;border-radius:12px;font-size:1rem;font-weight:800;cursor:pointer;box-shadow:0 12px 30px rgba(7,16,51,0.6);text-transform:uppercase}
+        .generate-btn::before{content:'';position:absolute}
+        .generate-btn:hover{transform:translateY(-3px)}
+        .generate-btn:disabled{opacity:.5;cursor:not-allowed}
+
+        /* Loading */
+        .loading{display:none;text-align:center;padding:36px}
+        .loading.active{display:block}
+        .spinner{width:56px;height:56px;border-radius:50%;border:4px solid rgba(255,255,255,0.06);border-top-color:var(--primary);animation:spin 1s linear infinite;margin:0 auto 16px}
+        @keyframes spin{to{transform:rotate(360deg)}}
+
+        /* Results */
+        .results{display:none}
+        .results.active{display:block}
+
+        .trip-summary{background:linear-gradient(135deg, rgba(124,58,237,0.12), rgba(6,182,212,0.06));border-radius:18px;padding:28px;margin-bottom:20px;color:var(--heading);position:relative}
+        .trip-summary::before{content:'✈️';position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:84px;opacity:.08}
+        .trip-summary h2{font-family:'Playfair Display',serif;font-size:1.8rem;margin-bottom:8px}
+
+        .trip-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:12px}
+        .meta-item{background:var(--glass);padding:14px;border-radius:12px;text-align:center;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.03)}
+        .meta-label{font-size:0.75rem;color:var(--muted);text-transform:uppercase}
+        .meta-value{font-size:1.1rem;font-weight:800;color:var(--heading)}
+
+        .itinerary-wrapper{background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));border-radius:14px;padding:22px}
+        .itinerary-content{color:var(--muted);line-height:1.8}
+
+        .day-section{background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));border-left:4px solid var(--primary);padding:18px;margin-bottom:14px;border-radius:10px}
+        .day-title{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+        .day-number{background:var(--primary);color:var(--heading);width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800}
+        .activity-block{padding-left:12px;border-left:2px solid rgba(255,255,255,0.03)}
+
+        .time-badge{display:inline-block;background:var(--accent);color:var(--heading);padding:6px 12px;border-radius:999px;font-weight:700;margin-bottom:8px}
+        .cost-badge{display:inline-block;background:var(--accent-2);color:white;padding:6px 12px;border-radius:999px;font-weight:700;margin-left:8px}
+
+        .action-buttons{display:flex;gap:12px;margin-top:18px;flex-wrap:wrap}
+        .action-btn{padding:10px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text);cursor:pointer;font-weight:700}
+        .action-btn:hover{background:rgba(255,255,255,0.02);transform:translateY(-3px)}
+
+        .error{background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.18);color:#ffb4b4;padding:12px;border-radius:10px;display:none}
+        .error.active{display:block}
+
+        @media (max-width:800px){
+            .container{padding:28px 16px}
+            h1{font-size:2rem}
+            .card{padding:20px}
+        }
+</style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>✈️ Voyageur AI</h1>
+            <p class="subtitle">Créez votre itinéraire de voyage personnalisé avec budget</p>
+        </header>
+
+        <div class="card">
+            <form id="itineraryForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="destination">📍 Destination</label>
+                        <div class="input-with-icon">
+                            <span class="input-icon">🌍</span>
+                            <input 
+                                type="text" 
+                                id="destination" 
+                                placeholder="Ex: Paris, Tokyo, New York..."
+                                required
+                            >
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="duration">📅 Durée du séjour (jours)</label>
+                        <div class="input-with-icon">
+                            <span class="input-icon">🗓️</span>
+                            <input 
+                                type="number" 
+                                id="duration" 
+                                min="1" 
+                                max="30" 
+                                value="5"
+                                required
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="budget">💰 Budget Total Disponible</label>
+                    <div class="budget-display">
+                        <div class="budget-value" id="budgetDisplay">$2,000</div>
+                        <div class="budget-label">Budget USD</div>
+                    </div>
+                    <input 
+                        type="range" 
+                        id="budget" 
+                        min="0" 
+                        max="20000" 
+                        value="2000" 
+                        step="100"
+                    >
+                    <div class="budget-legend">
+                        <span>Budget limité</span>
+                        <span>Budget flexible</span>
+                    </div>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>🎯 Vos intérêts</label>
+                    <div class="interests-container" id="interestsContainer">
+                        <div class="interest-tag" data-interest="art">🎨 Art & Culture</div>
+                        <div class="interest-tag" data-interest="food">🍽️ Gastronomie</div>
+                        <div class="interest-tag" data-interest="nature">🌳 Nature</div>
+                        <div class="interest-tag" data-interest="history">🏛️ Histoire</div>
+                        <div class="interest-tag" data-interest="adventure">🏔️ Aventure</div>
+                        <div class="interest-tag" data-interest="shopping">🛍️ Shopping</div>
+                        <div class="interest-tag" data-interest="nightlife">🌃 Vie nocturne</div>
+                        <div class="interest-tag" data-interest="relaxation">🧘 Détente</div>
+                    </div>
+                    <div class="custom-interest-group">
+                        <input 
+                            type="text" 
+                            id="customInterest" 
+                            placeholder="Ajouter un intérêt personnalisé..."
+                        >
+                        <button type="button" class="add-btn" id="addInterestBtn">+ Ajouter</button>
+                    </div>
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="model">🤖 Modèle IA</label>
+                    <select id="model">
+                        <option value="gpt-oss:120b-cloud">Modèle Cloud Standard (Recommandé)</option>
+                        <option value="gpt-oss:120b-cloud">Modèle Itinéraire Pro</option>
+                        <option value="llama2:7b">Llama 2 7B</option>
+                        <option value="gemma:7b">Gemma 7B</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="generate-btn" id="generateBtn">
+                    🚀 Générer mon itinéraire
+                </button>
+
+                <div class="error" id="errorMsg"></div>
+            </form>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>✨ Création de votre itinéraire personnalisé...</p>
+        </div>
+
+        <div class="results" id="results">
+            <div class="card">
+                <div class="trip-summary">
+                    <h2 id="resultTitle"></h2>
+                    <div class="trip-meta">
+                        <div class="meta-item">
+                            <div class="meta-icon">📅</div>
+                            <div class="meta-label">Durée</div>
+                            <div class="meta-value" id="metaDuration"></div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-icon">💰</div>
+                            <div class="meta-label">Budget</div>
+                            <div class="meta-value" id="metaBudget"></div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-icon">🎯</div>
+                            <div class="meta-label">Intérêts</div>
+                            <div class="meta-value" id="metaInterests"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="itinerary-wrapper">
+                    <div class="itinerary-content" id="itineraryContent"></div>
+                    
+                    <div class="action-buttons">
+                        <button class="action-btn" onclick="window.print()">
+                            🖨️ Imprimer
+                        </button>
+                        <button class="action-btn" onclick="copyItinerary()">
+                            📋 Copier
+                        </button>
+                        <button class="action-btn" onclick="downloadItinerary()">
+                            💾 Télécharger
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // État de l'application
+        const state = {
+            selectedInterests: new Set(),
+            currentItinerary: ''
+        };
+
+        // Éléments DOM
+        const form = document.getElementById('itineraryForm');
+        const generateBtn = document.getElementById('generateBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const errorMsg = document.getElementById('errorMsg');
+        const interestsContainer = document.getElementById('interestsContainer');
+        const customInterestInput = document.getElementById('customInterest');
+        const addInterestBtn = document.getElementById('addInterestBtn');
+        const budgetSlider = document.getElementById('budget');
+        const budgetDisplay = document.getElementById('budgetDisplay');
+
+        // Mise à jour du budget en temps réel
+        budgetSlider.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            budgetDisplay.textContent = value === 0 ? 'Pas de limite' : `$${value.toLocaleString()}`;
+        });
+
+        // Gestion des tags d'intérêts
+        interestsContainer.addEventListener('click', (e) => {
+            if (e.target.classList.contains('interest-tag')) {
+                const interest = e.target.dataset.interest;
+                e.target.classList.toggle('selected');
+                
+                if (state.selectedInterests.has(interest)) {
+                    state.selectedInterests.delete(interest);
+                } else {
+                    state.selectedInterests.add(interest);
+                }
+            }
+        });
+
+        // Ajouter un intérêt personnalisé
+        addInterestBtn.addEventListener('click', () => {
+            const customInterest = customInterestInput.value.trim();
+            if (customInterest) {
+                const tag = document.createElement('div');
+                tag.className = 'interest-tag selected';
+                tag.dataset.interest = customInterest;
+                tag.textContent = `✨ ${customInterest}`;
+                interestsContainer.appendChild(tag);
+                
+                state.selectedInterests.add(customInterest);
+                customInterestInput.value = '';
+            }
+        });
+
+        // Permettre d'ajouter avec Enter
+        customInterestInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addInterestBtn.click();
+            }
+        });
+
+        // Soumettre le formulaire
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Récupérer les données
+            const destination = document.getElementById('destination').value.trim();
+            const duration = parseInt(document.getElementById('duration').value);
+            const budget = parseInt(budgetSlider.value);
+            const model = document.getElementById('model').value;
+            const interests = Array.from(state.selectedInterests);
+
+            // Validation
+            if (!destination) {
+                showError('Veuillez entrer une destination');
+                return;
+            }
+
+            if (interests.length === 0) {
+                showError('Veuillez sélectionner au moins un intérêt');
+                return;
+            }
+
+            // Afficher le loading
+            hideError();
+            results.classList.remove('active');
+            loading.classList.add('active');
+            generateBtn.disabled = true;
+
+            try {
+                // Appeler l'API
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        destination,
+                        duration,
+                        interests,
+                        budget: budget === 0 ? null : budget,
+                        model
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data);
+                } else {
+                    showError(data.error || 'Une erreur est survenue');
+                }
+            } catch (error) {
+                showError('Impossible de se connecter au serveur. Assurez-vous que le backend est démarré.');
+                console.error('Erreur:', error);
+            } finally {
+                loading.classList.remove('active');
+                generateBtn.disabled = false;
+            }
+        });
+
+        // Afficher les résultats avec style
+        function displayResults(data) {
+            state.currentItinerary = data.itinerary;
+            
+            document.getElementById('resultTitle').textContent = `Votre voyage à ${data.destination}`;
+            document.getElementById('metaDuration').textContent = `${data.duration} jour${data.duration > 1 ? 's' : ''}`;
+            document.getElementById('metaBudget').textContent = data.budget ? `$${data.budget.toLocaleString()}` : 'Flexible';
+            document.getElementById('metaInterests').textContent = data.interests.slice(0, 2).join(', ');
+            
+            // Formatter l'itinéraire avec style
+            const formatted = formatItinerary(data.itinerary);
+            document.getElementById('itineraryContent').innerHTML = formatted;
+            
+            results.classList.add('active');
+            results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // Formatter l'itinéraire pour un affichage stylé
+        function formatItinerary(text) {
+            // Diviser en sections de jours
+            const lines = text.split('\n');
+            let formatted = '';
+            let currentDay = '';
+            let dayContent = '';
+            let dayNumber = 0;
+            
+            lines.forEach(line => {
+                // Détecter les titres de jour (Day 1, Jour 1, etc.)
+                if (line.match(/^(Day|Jour)\s+\d+/i)) {
+                    if (currentDay) {
+                        formatted += createDaySection(dayNumber, currentDay, dayContent);
+                    }
+                    dayNumber++;
+                    currentDay = line;
+                    dayContent = '';
+                } else if (line.trim()) {
+                    dayContent += line + '\n';
+                }
+            });
+            
+            // Ajouter le dernier jour
+            if (currentDay) {
+                formatted += createDaySection(dayNumber, currentDay, dayContent);
+            }
+            
+            // Si aucun jour n'est détecté, afficher le texte brut formaté
+            if (!formatted) {
+                formatted = `<div class="day-section">${text.replace(/\n/g, '<br>')}</div>`;
+            }
+            
+            return formatted;
+        }
+
+        // Créer une section de jour stylée
+        /*function createDaySection(number, title, content) {
+            // Détecter les coûts et les horaires
+            content = content.replace(/\$\d+(?:,\d{3})*(?:\.\d{2})?/g, match => 
+                `<span class="cost-badge">${match}</span>`
+            );
+            
+            content = content.replace(/\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?/g, match => 
+                `<span class="time-badge">${match}</span>`
+            );
+            
+            return `
+                <div class="day-section">
+                    <div class="day-title">
+                        <div class="day-number">${number}</div>
+                        <span>${title}</span>
+                    </div>
+                    <div class="activity-block">
+                        ${content.replace(/\n/g, '<br>')}
+                    </div>
+                </div>
+            `;
+        }*/
+       function createDaySection(number, title, content) {
+    // Utilisation de marked pour transformer le Markdown en HTML propre
+    const formattedContent = marked.parse(content); 
+    
+    return `
+        <div class="day-section">
+            <div class="day-title">
+                <div class="day-number">${number}</div>
+                <span>${title}</span>
+            </div>
+            <div class="activity-block">
+                ${formattedContent}
+            </div>
+        </div>
+    `;
+}
+
+        // Copier l'itinéraire
+        function copyItinerary() {
+            navigator.clipboard.writeText(state.currentItinerary).then(() => {
+                alert('✅ Itinéraire copié dans le presse-papiers !');
+            });
+        }
+
+        // Télécharger l'itinéraire
+        function downloadItinerary() {
+            const blob = new Blob([state.currentItinerary], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `itinerary-${document.getElementById('destination').value}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Afficher une erreur
+        function showError(message) {
+            errorMsg.textContent = message;
+            errorMsg.classList.add('active');
+            setTimeout(() => {
+                hideError();
+            }, 5000);
+        }
+
+        // Masquer l'erreur
+        function hideError() {
+            errorMsg.classList.remove('active');
+        }
+    </script>
+</body>
+</html>
